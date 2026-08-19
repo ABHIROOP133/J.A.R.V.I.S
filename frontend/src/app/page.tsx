@@ -1,127 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  LiveKitRoom,
-  VoiceAssistantControlBar,
-  BarVisualizer,
-  RoomAudioRenderer,
-  useConnectionState,
-} from "@livekit/components-react";
+import { useEffect, useRef, useState } from "react";
+import { BarVisualizer, LiveKitRoom, RoomAudioRenderer, useConnectionState, useVoiceAssistant, VoiceAssistantControlBar } from "@livekit/components-react";
 import { ConnectionState } from "livekit-client";
-import { Cpu, Radio, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, AudioLines, Circle, Cpu, Mic, Radio, ShieldCheck } from "lucide-react";
 import "@livekit/components-styles";
 
+type CoreMode = "idle" | "connecting" | "listening" | "speaking";
+type Node = { x: number; y: number; z: number; phase: number };
+const energy: Record<CoreMode, number> = { idle: .55, connecting: .72, listening: .9, speaking: 1 };
+
+function NeuralCore({ mode = "idle" }: { mode?: CoreMode }) {
+  const ref = useRef<HTMLCanvasElement>(null); const pointer = useRef({ x: 0, y: 0 });
+  useEffect(() => {
+    const canvas = ref.current; const ctx = canvas?.getContext("2d"); if (!canvas || !ctx) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const count = window.matchMedia("(max-width: 700px)").matches ? 34 : 58;
+    const nodes: Node[] = Array.from({ length: count }, (_, i) => { const a = i / count * Math.PI * 2.1; const r = .22 + Math.sqrt((i + 3) / count) * .72; return { x: Math.cos(a) * r, y: Math.sin(a * 1.71) * r * .72, z: Math.sin(a * .77) * r, phase: i * .61 }; });
+    let id = 0; const draw = (time: number) => { const rect = canvas.getBoundingClientRect(); const dpr = Math.min(devicePixelRatio || 1, 2); const w = Math.floor(rect.width * dpr), h = Math.floor(rect.height * dpr); if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; } ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, rect.width, rect.height); const t = reduce ? .7 : time * .00016; const scale = Math.min(rect.width, rect.height) * .43; const c = Math.cos(t + pointer.current.x * .14), s = Math.sin(t + pointer.current.x * .14); const mapped = nodes.map(n => { const x = n.x * c - n.z * s, z = n.x * s + n.z * c, y = n.y * Math.cos(.42 + pointer.current.y * .09) - z * Math.sin(.42 + pointer.current.y * .09), depth = (z + 1.25) / 2.5; return { x: rect.width / 2 + x * scale, y: rect.height / 2 + y * scale, depth, n }; });
+      ctx.lineCap = "round"; for (let i = 0; i < mapped.length; i++) for (let j = i + 1; j < mapped.length; j++) { const a = mapped[i], b = mapped[j], d = Math.hypot(a.n.x-b.n.x, a.n.y-b.n.y, a.n.z-b.n.z); if (d > .39) continue; ctx.strokeStyle = `rgba(66,193,238,${(1-d/.39)*.3*((a.depth+b.depth)/2)*energy[mode]})`; ctx.lineWidth = .45 + ((a.depth+b.depth)/2)*.75; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+      mapped.sort((a,b)=>a.depth-b.depth).forEach(({x,y,depth,n}) => { const r = (1.1 + depth*2.45) * (.7 + Math.sin(t*6+n.phase)*.3*energy[mode]); ctx.fillStyle = `rgba(141,229,255,${.28+depth*.66})`; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }); if (!reduce) id = requestAnimationFrame(draw); };
+    id = requestAnimationFrame(draw); return () => cancelAnimationFrame(id);
+  }, [mode]);
+  return <div className="neural-core" onPointerMove={e=>{const b=e.currentTarget.getBoundingClientRect();pointer.current={x:(e.clientX-b.left)/b.width-.5,y:(e.clientY-b.top)/b.height-.5};}} onPointerLeave={()=>{pointer.current={x:0,y:0};}} role="img" aria-label="Interactive neural network visualization"><canvas ref={ref}/><div className="neural-halo"/><div className="neural-caption">NEURAL INTERFACE</div></div>;
+}
+
 export default function Home() {
-  const [token, setToken] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const connectToJarvis = async () => {
-    setIsConnecting(true);
-    try {
-      const response = await fetch(
-        `/api/token?room=jarvis-room&username=user-${Math.floor(Math.random() * 1000)}`
-      );
-      const data = await response.json();
-      setToken(data.token);
-    } catch (e) {
-      console.error(e);
-      setIsConnecting(false);
-    }
-  };
-
-  return (
-    <main className="min-h-screen bg-black text-cyan-500 font-mono overflow-hidden relative selection:bg-cyan-900">
-      {/* Background Grid Pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
-      
-      {/* Glow effects */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyan-900/20 rounded-full blur-[120px] pointer-events-none" />
-
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-8">
-        <header className="absolute top-8 left-8 right-8 flex justify-between items-center opacity-80 border-b border-cyan-900/50 pb-4">
-          <div className="flex items-center gap-3">
-            <Cpu className="w-6 h-6 animate-pulse" />
-            <h1 className="text-xl tracking-[0.3em] font-bold">J.A.R.V.I.S.</h1>
-          </div>
-          <div className="flex items-center gap-2 text-xs tracking-widest text-cyan-700">
-            <ShieldCheck className="w-4 h-4" />
-            SECURE CONNECTION
-          </div>
-        </header>
-
-        {token === "" ? (
-          <div className="flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700">
-            <div className="relative">
-              <div className="absolute inset-0 bg-cyan-500 blur-2xl opacity-20 rounded-full animate-pulse" />
-              <button
-                onClick={connectToJarvis}
-                disabled={isConnecting}
-                className="relative group border-2 border-cyan-500/50 hover:border-cyan-400 bg-black/50 backdrop-blur-md px-12 py-6 rounded-full uppercase tracking-[0.3em] font-semibold transition-all duration-300 hover:shadow-[0_0_40px_rgba(0,255,255,0.3)] disabled:opacity-50"
-              >
-                <div className="absolute inset-0 bg-cyan-500/10 scale-0 group-hover:scale-100 rounded-full transition-transform duration-300 origin-center" />
-                <span className="relative z-10 flex items-center gap-3">
-                  <Radio className="w-5 h-5" />
-                  {isConnecting ? "INITIALIZING..." : "SYSTEM START"}
-                </span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <LiveKitRoom
-            serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-            token={token}
-            connect={true}
-            audio={true}
-            video={false}
-            className="flex flex-col items-center w-full max-w-4xl gap-12"
-            onDisconnected={() => {
-              setToken("");
-              setIsConnecting(false);
-            }}
-          >
-            <RoomAudioRenderer />
-            <JarvisInterface />
-          </LiveKitRoom>
-        )}
-      </div>
-    </main>
-  );
+  const [token, setToken] = useState(""); const [isConnecting, setIsConnecting] = useState(false);
+  const connect = async () => { setIsConnecting(true); try { const r = await fetch(`/api/token?room=jarvis-room&username=user-${Math.floor(Math.random()*1000)}`); if (!r.ok) throw new Error("Unable to initialize"); setToken((await r.json()).token); } catch (e) { console.error(e); setIsConnecting(false); } };
+  return <main className="app-shell"><div className="atmosphere"/><Header connected={!!token}/>{!token ? <Landing connecting={isConnecting} connect={connect}/> : <LiveKitRoom serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} token={token} connect audio video={false} className="live-session" onDisconnected={()=>{setToken("");setIsConnecting(false);}}><RoomAudioRenderer/><AssistantConsole/></LiveKitRoom>}</main>;
 }
-
-function JarvisInterface() {
-  const state = useConnectionState();
-
-  return (
-    <div className="w-full flex flex-col items-center justify-center gap-16 animate-in slide-in-from-bottom-12 fade-in duration-1000">
-      
-      {/* Visualizer Ring */}
-      <div className="relative flex items-center justify-center w-64 h-64">
-        <div className="absolute inset-0 border border-cyan-900/50 rounded-full animate-[spin_10s_linear_infinite]" />
-        <div className="absolute inset-4 border border-cyan-800/40 border-dashed rounded-full animate-[spin_15s_linear_infinite_reverse]" />
-        
-        {/* Core AI visualizer */}
-        <div className="relative z-10 w-full h-full flex items-center justify-center scale-150">
-          <BarVisualizer
-            state="speaking"
-            barCount={7}
-            options={{ minHeight: 10 }}
-            className="text-cyan-400 opacity-80 mix-blend-screen"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col items-center gap-4">
-        <div className="uppercase tracking-[0.4em] text-xs text-cyan-600 font-semibold">
-          {state === ConnectionState.Connected ? "ONLINE - LISTENING" : "ESTABLISHING UPLINK..."}
-        </div>
-        
-        {/* Control Bar (Mute/Disconnect) */}
-        <div className="opacity-70 hover:opacity-100 transition-opacity">
-          <VoiceAssistantControlBar />
-        </div>
-      </div>
-
-    </div>
-  );
-}
+function Header({connected}:{connected:boolean}) { return <header className="topbar"><a href="#home" className="brand"><span className="brand-mark">J</span><span>JARVIS</span></a><nav><a href="#home">Home</a><a href="#assistant">Assistant</a><a href="#system">System</a></nav><div className="connection-status"><Circle/><span>{connected ? "Voice link active" : "System ready"}</span></div></header>; }
+function Landing({connecting,connect}:{connecting:boolean;connect:()=>void}) { return <section id="home" className="hero"><div className="hero-copy"><p className="eyebrow"><span/> JARVIS // ONLINE</p><h1>Your intelligent<br/>digital assistant.</h1><p className="hero-description">A real-time voice interface engineered to listen, reason, and respond when you need it.</p><div className="hero-actions"><button className="button-primary" onClick={connect} disabled={connecting}><Mic size={17}/>{connecting ? "Establishing link" : "Start conversation"}</button><a className="button-secondary" href="#system">Explore system <ArrowUpRight size={16}/></a></div><p className="privacy-note"><ShieldCheck size={15}/> A private LiveKit voice session opens when you start.</p></div><div className="hero-visual"><NeuralCore mode={connecting ? "connecting" : "idle"}/></div><section id="system" className="system-strip"><div><span>INTERFACE</span><strong>Voice-first</strong></div><div><span>CONNECTION</span><strong>{connecting ? "Initialising" : "On demand"}</strong></div><div><span>SESSION</span><strong>LiveKit secured</strong></div></section></section>; }
+function AssistantConsole() { const connection = useConnectionState(); const {state} = useVoiceAssistant(); const connected = connection === ConnectionState.Connected; const label = !connected ? "Connecting" : state === "speaking" ? "Speaking" : state === "listening" ? "Listening" : "Ready"; const mode:CoreMode = !connected ? "connecting" : state === "speaking" ? "speaking" : "listening"; return <section id="assistant" className="assistant-console"><aside className="console-side"><p className="eyebrow"><span/> LIVE SESSION</p><h1>Voice, without the noise.</h1><p>Jarvis joins the room and responds over an encrypted real-time audio connection.</p><div className="state-list"><Status icon={<Radio size={15}/>} label="Voice link" value={connected ? "Connected" : "Connecting"}/><Status icon={<Cpu size={15}/>} label="Assistant" value={label}/><Status icon={<AudioLines size={15}/>} label="Audio output" value={connected ? "Available" : "Waiting"}/></div></aside><div className="session-core"><NeuralCore mode={mode}/><div className="voice-state"><span className="state-dot"/>{label}</div><BarVisualizer state={state} barCount={9} options={{minHeight:6}} className="voice-bars"/><VoiceAssistantControlBar className="voice-controls"/></div></section>; }
+function Status({icon,label,value}:{icon:React.ReactNode;label:string;value:string}) { return <div className="status-item"><span>{icon}</span><p>{label}<strong>{value}</strong></p></div>; }

@@ -43,7 +43,11 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
         stt=openai.STT(),       # Speech-to-Text: Whisper
-        llm=openai.LLM(),       # Language Model: GPT-4o
+        llm=openai.LLM(
+            model="llama3.1",
+            base_url="http://localhost:11434/v1",
+            api_key="ollama"
+        ),       # Language Model: Local Ollama
         tts=openai.TTS(),       # Text-to-Speech: OpenAI TTS
     )
 

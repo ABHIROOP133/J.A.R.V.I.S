@@ -95,13 +95,19 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info("Jarvis job received for room '%s'", ctx.room.name)
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
-        stt=openai.STT(),
+        stt=openai.STT(
+            base_url="http://localhost:8000/v1",
+            api_key="local"
+        ),
         llm=openai.LLM(
             model="llama3.1",
             base_url="http://localhost:11434/v1",
             api_key="ollama"
         ),
-        tts=openai.TTS(),
+        tts=openai.TTS(
+            base_url="http://localhost:8000/v1",
+            api_key="local"
+        ),
     )
 
     try:

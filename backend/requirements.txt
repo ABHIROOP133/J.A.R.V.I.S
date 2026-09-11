@@ -1,2 +1,5 @@
 livekit-agents==1.6.10
 python-dotenv==1.2.2
+faster-whisper
+pyttsx3  
+ 
